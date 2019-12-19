@@ -86,20 +86,52 @@ function sleep(ms) {
   });
 }
 
+function printError() {
+  console.log("Error in Arguments, Try with the following");
+  console.log("node awslambdasync.js <Source_Path> download ALL");
+  console.log("node awslambdasync.js <Source_Path> download WILD <Partial Function Name>");
+  console.log("node awslambdasync.js <Source_Path> download <Function Name>");
+  console.log("node awslambdasync.js <Source_Path> download <Function Name> <Function Name>");
+  console.log("node awslambdasync.js <Source_Path> upload ALL");
+  console.log("node awslambdasync.js <Source_Path> upload WILD <Partial Function Name>");
+  console.log("node awslambdasync.js <Source_Path> upload <Function Name>");
+  console.log("node awslambdasync.js <Source_Path> upload <Function Name> <Function Name>");
+}
+
 let init = async function() {
   try {
     let isUpload = false;
     let isALL = false;
-    if (process.argv.length === 4) {
-      if (process.argv[2] === "upload") {
-        isUpload = true;
+    let function_names = [];
+    let wildCard = "w2@w3Sde#";
+    let BASE_SOURCE_PATH;
+    if (process.argv.length >= 5) {
+      BASE_SOURCE_PATH = path.resolve(process.argv[2]);
+      console.log("Processing the source path " + BASE_SOURCE_PATH);
+      if (process.argv[3] === "upload" || process.argv[3] === "download") {
+        if (process.argv[3] === "upload") {
+          isUpload = true;
+        }
+      } else {
+        printError();
+        return;
       }
-      if (process.argv[3] === "ALL") {
+      if (process.argv[4] === "ALL") {
         isALL = true;
+      } else if (process.argv[4] === "WILD" && process.argv.length == 6) {
+        wildCard = process.argv[5];
+        function_names.push(process.argv[5] + "*");
+      } else if (process.argv[4] != "ALL" && process.argv[4] != "WILD") {
+        for (let i = 4; i < process.argv.length; i++) {
+          function_names.push(process.argv[i]);
+        }
+      } else {
+        printError();
+        return;
       }
-      console.log((isUpload ? "Uploading" : "Downloading") + " " + (isALL ? "ALL" : process.argv[3]) + " Function(s) from ../");
+      console.log((isUpload ? "Uploading " : "Downloading ") + (isALL ? "ALL" : JSON.stringify(function_names)) + " Function(s) from " + BASE_SOURCE_PATH);
     } else {
-      console.log("Error in Arguments, Try with churchlink_<Function Name> or ALL");
+      printError();
       return;
     }
 
@@ -108,11 +140,13 @@ let init = async function() {
       //Download
       let getAllFunctionListResult = JSON.parse(await getAllFunctionList()).Functions;
       getAllFunctionListResult.map(async f => {
-        if (isALL || f.FunctionName === process.argv[3]) {
+        if (isALL || function_names.includes(f.FunctionName) || f.FunctionName.startsWith(wildCard)) {
           getFunctionDescriptionResult = JSON.parse(await getFunctionDescription(f.FunctionName)).Code.Location;
-
-          var localSourceFolder = `../${f.FunctionName}`;
-          var backupZipFileName = `../.backup/${f.FunctionName}_` + new Date().YYYYMMDDHHMMSS() + "_LOC.zip";
+          if (!fs.existsSync(BASE_SOURCE_PATH + "/.backup")) {
+            fs.mkdirSync(BASE_SOURCE_PATH + "/.backup");
+          }
+          var localSourceFolder = BASE_SOURCE_PATH + `/${f.FunctionName}`;
+          var backupZipFileName = BASE_SOURCE_PATH + `/.backup/${f.FunctionName}_` + new Date().YYYYMMDDHHMMSS() + "_LOC.zip";
           var downloadZipFileName = `${f.FunctionName}.zip`;
 
           //Backup Local Folder if exists
@@ -131,15 +165,15 @@ let init = async function() {
           }
 
           //Delete Zip from Local if exists
-          if (fs.existsSync("../" + downloadZipFileName)) {
-            fs.unlinkSync("../" + downloadZipFileName);
+          if (fs.existsSync(BASE_SOURCE_PATH + "/" + downloadZipFileName)) {
+            fs.unlinkSync(BASE_SOURCE_PATH + "/" + downloadZipFileName);
           }
 
           //Download from AWS
-          downloadFileResult = await downloadFile("../", downloadZipFileName, getFunctionDescriptionResult);
+          downloadFileResult = await downloadFile(BASE_SOURCE_PATH + "/", downloadZipFileName, getFunctionDescriptionResult);
           await sleep(500);
 
-          if (fs.existsSync("../" + downloadZipFileName)) {
+          if (fs.existsSync(BASE_SOURCE_PATH + "/" + downloadZipFileName)) {
             console.log("Download Completed for Function", f.FunctionName);
             //Delete Local Folder
             if (fs.existsSync(localSourceFolder)) {
@@ -148,11 +182,11 @@ let init = async function() {
             fs.mkdirSync(localSourceFolder);
 
             //Extract Zip to Local Folder
-            //zipper.sync.unzip("../" + downloadZipFileName).save(localSourceFolder + "/");
-            extractZipResult = await extractZip("../" + downloadZipFileName, path.resolve(localSourceFolder) + "/");
+            //zipper.sync.unzip(BASE_SOURCE_PATH+"/" + downloadZipFileName).save(localSourceFolder + "/");
+            extractZipResult = await extractZip(BASE_SOURCE_PATH + "/" + downloadZipFileName, path.resolve(localSourceFolder) + "/");
 
             //Delete Zip from Local
-            fs.unlinkSync("../" + downloadZipFileName);
+            fs.unlinkSync(BASE_SOURCE_PATH + "/" + downloadZipFileName);
             console.log("Extract Completed for Function", f.FunctionName);
           } else {
             console.log("Download Failed for Function", f.FunctionName);
@@ -164,10 +198,13 @@ let init = async function() {
       //Upload
       let getAllFunctionListResult = JSON.parse(await getAllFunctionList()).Functions;
       getAllFunctionListResult.map(async f => {
-        if (isALL || f.FunctionName === process.argv[3]) {
+        if (isALL || function_names.includes(f.FunctionName) || f.FunctionName.startsWith(wildCard)) {
           getFunctionDescriptionResult = JSON.parse(await getFunctionDescription(f.FunctionName)).Code.Location;
-          var localSourceFolder = `../${f.FunctionName}/`;
-          var uploadZipFileName = `../${f.FunctionName}.zip`;
+          var localSourceFolder = BASE_SOURCE_PATH + `/${f.FunctionName}/`;
+          var uploadZipFileName = BASE_SOURCE_PATH + `/${f.FunctionName}.zip`;
+          if (!fs.existsSync(BASE_SOURCE_PATH + "/.backup")) {
+            fs.mkdirSync(BASE_SOURCE_PATH + "/.backup");
+          }
 
           //Delete Zip from Local if exists
           if (fs.existsSync(uploadZipFileName)) {
@@ -184,9 +221,9 @@ let init = async function() {
 
           //Backup from AWS to Local Folder
           var backupZipFileName = `${f.FunctionName}_` + new Date().YYYYMMDDHHMMSS() + "_AWS.zip";
-          downloadFileResult = await downloadFile("../.backup/", backupZipFileName, getFunctionDescriptionResult);
+          downloadFileResult = await downloadFile(BASE_SOURCE_PATH + "/.backup/", backupZipFileName, getFunctionDescriptionResult);
 
-          if (fs.existsSync("../.backup/" + backupZipFileName)) {
+          if (fs.existsSync(BASE_SOURCE_PATH + "/.backup/" + backupZipFileName)) {
             console.log("AWS Backup Completed for ", f.FunctionName);
           } else {
             console.log("Backup Zip Not Exists, AWS Backup Failed for ", f.FunctionName);

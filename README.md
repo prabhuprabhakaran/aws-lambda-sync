@@ -6,13 +6,15 @@ aws-lambda-sync is a utility to upload and download the lambda functions hosted 
 
   - While Uploading the changes to AWS, it will do a auto backup the function in AWS to local
   - While downloding the changes form AWS, it will do a auto backup of the local functions
-  - We can ealily fallback at any point
-  - We can Upload/download functions
+  - Able to ealily fallback at any point
+  - Facilitate to store all the functions to GIT
+  - Facilitate to do the CI/CD for the Lambda function development
+  - Able to Upload/download functions
   - All functions are backuped locally
-
-You can also:
   - Download more than one functions at a time
+  - Supports startswith functionality for multiple functions
   - Upload more than one functions at a time
+  - Supports relative and absolute paths on Source Path
   
 ## Usage
 aws-lambda-sync is smple to use.
@@ -30,24 +32,34 @@ aws-lambda-sync is smple to use.
 ### Upload Lambda Function
 * To upload ALL Lambda function from Local to AWS
 
-        node awslambdasync.js upload ALL
+        node awslambdasync.js <Source_Path> upload ALL
 
 * To upload specfic Lambda function from Local to AWS
 
-         node awslambdasync.js upload <function_name>
+         node awslambdasync.js <Source_Path> upload WILD <Partial Function Name>
+		 
+		 node awslambdasync.js <Source_Path> upload <Function Name>
+		 
+		 node awslambdasync.js <Source_Path> upload <Function Name> <Function Name>
 
 ### Download Lambda Function
 * To download ALL Lambda function from Local to AWS
 
-        node awslambdasync.js download ALL
+        node awslambdasync.js <Source_Path> download ALL
 
 * To download specfic Lambda function from Local to AWS
-
-         node awslambdasync.js download <function_name>
+download
+         node awslambdasync.js <Source_Path> download WILD <Partial Function Name>
+		 
+		 node awslambdasync.js <Source_Path> download <Function Name>
+		 
+		 node awslambdasync.js <Source_Path> download <Function Name> <Function Name>
+		 
 ### Todos
 
  - Write MORE Tests
  - Add AWS Lambda Function Configuration Support
+ - Add AWS Developer deployment
 
 License
 ----
