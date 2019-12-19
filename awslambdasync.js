@@ -91,22 +91,13 @@ let init = async function() {
     let isUpload = false;
     let isALL = false;
     if (process.argv.length === 4) {
-      if (process.argv[2] === "upload" && process.argv[3] === "ALL") {
-        isALL = true;
+      if (process.argv[2] === "upload") {
         isUpload = true;
-        console.log("Uploading ALL Functions from ../");
-      } else if (process.argv[2] === "upload" && process.argv[3].startsWith("churchlink_")) {
-        isUpload = true;
-        console.log("Uploading " + process.argv[3] + " Functions from ../");
-      } else if (process.argv[2] === "download" && process.argv[3] === "ALL") {
-        isALL = true;
-        console.log("Downloading ALL Functions to ../");
-      } else if (process.argv[2] === "download" && process.argv[3].startsWith("churchlink_")) {
-        console.log("Downloading " + process.argv[3] + " Functions to ../");
-      } else {
-        console.log("Error in Arguments, Try with churchlink_<Function Name> or ALL");
-        return;
       }
+      if (process.argv[3] === "ALL") {
+        isALL = true;
+      }
+      console.log((isUpload ? "Uploading" : "Downloading") + " " + (isALL ? "ALL" : process.argv[3]) + " Function(s) from ../");
     } else {
       console.log("Error in Arguments, Try with churchlink_<Function Name> or ALL");
       return;
@@ -117,7 +108,7 @@ let init = async function() {
       //Download
       let getAllFunctionListResult = JSON.parse(await getAllFunctionList()).Functions;
       getAllFunctionListResult.map(async f => {
-        if ((isALL && f.FunctionName.startsWith("churchlink_")) || (!isALL && f.FunctionName === process.argv[3])) {
+        if (isALL || f.FunctionName === process.argv[3]) {
           getFunctionDescriptionResult = JSON.parse(await getFunctionDescription(f.FunctionName)).Code.Location;
 
           var localSourceFolder = `../${f.FunctionName}`;
@@ -173,7 +164,7 @@ let init = async function() {
       //Upload
       let getAllFunctionListResult = JSON.parse(await getAllFunctionList()).Functions;
       getAllFunctionListResult.map(async f => {
-        if ((isALL && f.FunctionName.startsWith("churchlink_")) || (!isALL && f.FunctionName === process.argv[3])) {
+        if (isALL || f.FunctionName === process.argv[3]) {
           getFunctionDescriptionResult = JSON.parse(await getFunctionDescription(f.FunctionName)).Code.Location;
           var localSourceFolder = `../${f.FunctionName}/`;
           var uploadZipFileName = `../${f.FunctionName}.zip`;
