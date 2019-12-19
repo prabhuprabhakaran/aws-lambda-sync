@@ -48,7 +48,7 @@ aws-lambda-sync is smple to use.
         node awslambdasync.js <Source_Path> download ALL
 
 * To download specfic Lambda function from Local to AWS
-download
+
          node awslambdasync.js <Source_Path> download WILD <Partial Function Name>
 		 
 		 node awslambdasync.js <Source_Path> download <Function Name>
