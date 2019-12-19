@@ -6,6 +6,26 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/prabhuprabhakaran/aws-lambda-sync.git"
+  },
+  "keywords": [
+    "aws",
+    "lambda",
+    "sync",
+    "aws-cli",
+    "awscli",
+    "cli",
+    "aws-lambda",
+	"awslambda",
+	"awslambdasync",
+	"aws-lambda-download",
+	"lambda download",
+	"lambda upload",
+	"lambda local upload",
+	"lambda functions"
+  ],
   "author": "Prabhu Prabhakaran",
   "license": "MIT",
   "dependencies": {
