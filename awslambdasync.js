@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 let download = require("download-file");
 let cmd = require("node-cmd");
 var zipper = require("zip-local");

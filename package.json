@@ -1,42 +1,52 @@
 {
-  "name": "aws-lambda-sync",
-  "version": "1.0.3",
-  "description": "This npm module is used to upload and download lambda functions from AWS",
-  "main": "awslambdasync.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/prabhuprabhakaran/aws-lambda-sync.git"
-  },
-  "keywords": [
-    "aws",
-    "lambda",
-    "sync",
-    "aws-cli",
-    "awscli",
-    "cli",
-    "aws-lambda",
-    "awslambda",
-    "awslambdasync",
-    "aws-lambda-download",
-    "lambda download",
-    "lambda upload",
-    "lambda local upload",
-    "lambda functions"
-  ],
-  "author": "Prabhu Prabhakaran",
-  "license": "MIT",
-  "dependencies": {
-    "download-file": "^0.1.5",
-    "extract-zip": "^1.6.7",
-    "fs": "0.0.1-security",
-    "node-cmd": "^3.0.0",
-    "path": "^0.12.7",
-    "zip-local": "^0.3.4"
-  },
-  "devDependencies": {
-    "grunt-bump": "^0.8.0"
-  }
+	"name": "aws-lambda-sync",
+	"version": "1.0.3",
+	"description": "This npm module is used to upload and download lambda functions from AWS",
+	"main": "awslambdasync.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/prabhuprabhakaran/aws-lambda-sync.git"
+	},
+	"keywords": [
+		"aws deploy",
+		"aws download",
+		"aws",
+		"aws-cli",
+		"aws-lambda",
+		"aws-lambda-download",
+		"awscli",
+		"awslambda",
+		"awslambdasync",
+		"cli",
+		"deploy",
+		"download",
+		"lambda download",
+		"lambda functions",
+		"lambda local upload",
+		"lambda upload",
+		"lambda",
+		"lambda-aws",
+		"lambdaaws",
+		"serverless",
+		"sync"
+	],
+	"author": "Prabhu Prabhakaran",
+	"license": "MIT",
+	"dependencies": {
+		"download-file": "^0.1.5",
+		"extract-zip": "^1.6.7",
+		"fs": "0.0.1-security",
+		"node-cmd": "^3.0.0",
+		"path": "^0.12.7",
+		"zip-local": "^0.3.4"
+	},
+	"bin": {
+		"aws-lambda-sync": "./awslambdasync.js"
+	},
+	"devDependencies": {
+		"grunt-bump": "^0.8.0"
+	}
 }

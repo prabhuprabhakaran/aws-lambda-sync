@@ -32,28 +32,28 @@ aws-lambda-sync is smple to use.
 ### Upload Lambda Function
 * To upload ALL Lambda function from Local to AWS
 
-        node awslambdasync.js <Source_Path> upload ALL
+        aws-lambda-sync <Source_Path> upload ALL
 
 * To upload specfic Lambda function from Local to AWS
 
-         node awslambdasync.js <Source_Path> upload WILD <Partial Function Name>
+         aws-lambda-sync <Source_Path> upload WILD <Partial Function Name>
 		 
-		 node awslambdasync.js <Source_Path> upload <Function Name>
+		 aws-lambda-sync <Source_Path> upload <Function Name>
 		 
-		 node awslambdasync.js <Source_Path> upload <Function Name> <Function Name>
+		 aws-lambda-sync <Source_Path> upload <Function Name> <Function Name>
 
 ### Download Lambda Function
 * To download ALL Lambda function from Local to AWS
 
-        node awslambdasync.js <Source_Path> download ALL
+        aws-lambda-sync <Source_Path> download ALL
 
 * To download specfic Lambda function from Local to AWS
 
-         node awslambdasync.js <Source_Path> download WILD <Partial Function Name>
+         aws-lambda-sync <Source_Path> download WILD <Partial Function Name>
 		 
-		 node awslambdasync.js <Source_Path> download <Function Name>
+		 aws-lambda-sync <Source_Path> download <Function Name>
 		 
-		 node awslambdasync.js <Source_Path> download <Function Name> <Function Name>
+		 aws-lambda-sync <Source_Path> download <Function Name> <Function Name>
 		 
 ### Todos
 
