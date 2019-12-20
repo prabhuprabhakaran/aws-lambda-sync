@@ -105,32 +105,33 @@ function validateArgs() {
     console.log("Processing the source path " + BASE_SOURCE_FOLDER);
     if (process.argv[3] === "upload" || process.argv[3] === "download") {
       if (process.argv[3] === "upload") {
-        isUpload = true;
+        IS_UPLOAD = true;
       }
     } else {
       printError();
       return false;
     }
     if (process.argv[4] === "ALL") {
-      isALL = true;
+      IS_ALL = true;
     } else if (process.argv[4] === "WILD" && process.argv.length == 6) {
-      wildCard = process.argv[5];
-      function_names.push(process.argv[5] + "*");
+      WILD_CARD = process.argv[5];
+      FUNCTION_NAMES.push(process.argv[5] + "*");
     } else if (process.argv[4] != "ALL" && process.argv[4] != "WILD") {
       for (let i = 4; i < process.argv.length; i++) {
-        function_names.push(process.argv[i]);
+        FUNCTION_NAMES.push(process.argv[i]);
       }
     } else {
       printError();
       return false;
     }
-    console.log((isUpload ? "Uploading " : "Downloading ") + (isALL ? "ALL" : JSON.stringify(function_names)) + " Function(s) from " + BASE_SOURCE_FOLDER);
+    console.log((IS_UPLOAD ? "Uploading " : "Downloading ") + (IS_ALL ? "ALL" : JSON.stringify(FUNCTION_NAMES)) + " Function(s) from " + BASE_SOURCE_FOLDER);
   } else {
     printError();
     return false;
   }
   return true;
 }
+
 function printError() {
   console.log("Error in Arguments, Try with the following");
   console.log("aws_lambda_sync <Source_Path> download ALL");
@@ -143,15 +144,21 @@ function printError() {
   console.log("aws_lambda_sync <Source_Path> upload <Function Name> <Function Name>");
 }
 
-//Global Vars
-let isUpload = false;
-let isALL = false;
-let function_names = [];
-let wildCard = "w2@w3Sde#";
+/**
+ * Global Variables
+ */
+let IS_UPLOAD = false;
+let IS_ALL = false;
+let FUNCTION_NAMES = [];
+let WILD_CARD = "w2@w3Sde#";
 let BASE_SOURCE_FOLDER;
 var BASE_SOURCE_PATH;
+
 let init = async function() {
   try {
+    /**
+     * Validating Arguments & Creating Paths
+     */
     if (!validateArgs()) {
       return;
     }
@@ -162,8 +169,10 @@ let init = async function() {
     let allFunctionListResult = JSON.parse(await getAllFunctionList()).Functions;
 
     allFunctionListResult.map(async f => {
-      if (isALL || function_names.includes(f.FunctionName) || f.FunctionName.startsWith(wildCard)) {
-        functionDescriptionResult = JSON.parse(await getFunctionDescription(f.FunctionName));
+      if (IS_ALL || FUNCTION_NAMES.includes(f.FunctionName) || f.FunctionName.startsWith(WILD_CARD)) {
+        /**
+         * Variables
+         */
         var localSourceFolder = BASE_SOURCE_FOLDER + `/${f.FunctionName}`;
         var backupFolderPath = BASE_SOURCE_FOLDER + "/.backup/";
 
@@ -178,32 +187,47 @@ let init = async function() {
 
         var localSourceFolderPath = localSourceFolder + "/";
 
-        //Delete Old Uploaded/Downloaded Zip from Local if exists
+        /**
+         * Delete Old Uploaded/Downloaded Zip from Local if exists
+         */
+
         if (fs.existsSync(zipFilePath)) {
           fs.unlinkSync(zipFilePath);
         }
 
+        functionDescriptionResult = JSON.parse(await getFunctionDescription(f.FunctionName));
+
         /**
          * Download Steps
          *
-         * 1. Delete the Downloade Zip, if exist (already uploaded/cancelled)
+         * 1. Delete the Downloaded Zip, if exist (already uploaded/cancelled)
+         * check for local changes in git, if so throw error
+         *get functionDescriptionResult
+         if revision number is different from functionDescriptionResult and local config then do the following, else return
+         
          * 2. Backup Local Folder, if exist
          * 3. Download Zip File from AWS
          * 4. Delete Local Folder, if Exist
          * 5. Extract the Downloaded Zip
+         * save the config
          * 6. Delete the Downloaded Zip
-         * 
+         *
          * Upload Steps
-         * 
-         * 1. Delete the Downloade Zip, if exist (already uploaded/cancelled)
+         *
+         * 1. Delete the Downloaded Zip, if exist (already uploaded/cancelled)
+         * get functionDescriptionResult
+         * if revision number is same then continue Upload, else ask to download and update
          * 2. Zip the local folder
          * 3. Download and Backup the function from AWS
          * 4. Upload the Zip Folder
-         * 5. Delete the Downloade Zip
+         * update the config
+         * 5. Delete the Downloaded Zip
          */
 
-        if (!isUpload) {
-          //Backup Local Folder if exists
+        if (!IS_UPLOAD) {
+          /**
+           * Backup Local Folder if exists
+           */
           if (fs.existsSync(localSourceFolder)) {
             zipper.sync
               .zip(localSourceFolderPath)
@@ -218,22 +242,30 @@ let init = async function() {
             }
           }
 
-          //Download Zip from AWS
+          /**
+           * Download Zip from AWS
+           */
           downloadFileResult = await downloadFile(BASE_SOURCE_PATH, zipFileName, functionDescriptionResult.Code.Location);
           await sleep(500);
 
           if (fs.existsSync(zipFilePath)) {
             console.log("Download Completed for Function", f.FunctionName);
-            //Delete Local Folder
+            /**
+             * Delete Local Folder
+             */
             if (fs.existsSync(localSourceFolder)) {
               fs.rmdirSync(localSourceFolder, { recursive: true });
             }
             fs.mkdirSync(localSourceFolder);
 
-            //Extract Zip to Local Folder
+            /**
+             * Extract downloaded Zip to Local Folder
+             */
             extractZipResult = await extractZip(zipFilePath, path.resolve(localSourceFolderPath));
 
-            //Delete downloaded Zip from Local
+            /**
+             * Delete downloaded Zip from Local
+             */
             fs.unlinkSync(zipFilePath);
             console.log("Extract Completed for Function", f.FunctionName);
           } else {
@@ -241,14 +273,18 @@ let init = async function() {
             return;
           }
         } else {
-          //Zip Local Folder to upload
+          /**
+           * Zip Local Folder to upload
+           */
           zipper.sync
             .zip(localSourceFolderPath)
             .compress()
             .save(zipFilePath);
           console.log("Local Zip creation to upload Completed for ", f.FunctionName);
 
-          //Backup from AWS to Local Folder
+          /**
+           * Backup from AWS to Local Folder
+           */
           downloadFileResult = await downloadFile(backupFolderPath, awsBackupZipFileName, functionDescriptionResult.Code.Location);
           await sleep(500);
 
@@ -260,10 +296,14 @@ let init = async function() {
           }
 
           if (fs.existsSync(zipFilePath)) {
-            //Upload to AWS
+            /**
+             * Upload to AWS
+             */
             uploadFunctionResult = await uploadFunction(f.FunctionName, "fileb://" + zipFilePath);
 
-            //Delete Local zip Uploaded
+            /**
+             * Delete Local zip Uploaded
+             */
             fs.unlinkSync(zipFilePath);
             console.log("Upload Completed for ", f.FunctionName);
           } else {
