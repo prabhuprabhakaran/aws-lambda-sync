@@ -35,9 +35,9 @@ let extractZip = async function(source, target) {
   });
 };
 
-let getAllFunctionList = async function() {
+let getAllFunctionList = async function(profile) {
   return new Promise((success, failure) => {
-    cmd.get("aws lambda list-functions", function(err, data, stderr) {
+    cmd.get(`aws lambda --profile ${profile} list-functions`, function(err, data, stderr) {
       if (err || stderr) {
         failure(err || stderr);
       } else {
@@ -47,9 +47,9 @@ let getAllFunctionList = async function() {
   });
 };
 
-let uploadFunction = async function(name, zipFile) {
+let uploadFunction = async function(name, zipFile, profile) {
   return new Promise((success, failure) => {
-    cmd.get(`aws lambda update-function-code --function-name ${name} --zip-file ${zipFile}`, function(err, data, stderr) {
+    cmd.get(`aws lambda update-function-code --profile ${profile} --function-name ${name} --zip-file ${zipFile}`, function(err, data, stderr) {
       if (err || stderr) {
         failure(err || stderr);
       } else {
@@ -59,9 +59,9 @@ let uploadFunction = async function(name, zipFile) {
   });
 };
 
-let getFunctionDescription = async function(name) {
+let getFunctionDescription = async function(name, profile) {
   return new Promise((success, failure) => {
-    cmd.get(`aws lambda get-function --function-name ${name}`, function(err, data, stderr) {
+    cmd.get(`aws lambda get-function --profile ${profile} --function-name ${name}`, function(err, data, stderr) {
       if (err || stderr) {
         failure(err || stderr);
       } else {
@@ -99,25 +99,35 @@ function createBackupPaths() {
 }
 
 function validateArgs() {
-  if (process.argv.length >= 5) {
-    BASE_SOURCE_FOLDER = path.resolve(process.argv[2]);
+  let index_file_path = 2;
+  let index_profile = 3;
+  let index_action = 4;
+  let index_function_name = 5;
+  let min_arg_count = 6;
+  if (process.argv.length >= min_arg_count) {
+    BASE_SOURCE_FOLDER = path.resolve(process.argv[index_file_path]);
     BASE_SOURCE_PATH = BASE_SOURCE_FOLDER + "/";
     console.log("Processing the source path " + BASE_SOURCE_FOLDER);
-    if (process.argv[3] === "upload" || process.argv[3] === "download") {
-      if (process.argv[3] === "upload") {
+    PROFILE = process.argv[index_profile];
+    if (process.argv[index_action] === "upload" || process.argv[index_action] === "download") {
+      if (process.argv[index_action] === "upload") {
         IS_UPLOAD = true;
       }
     } else {
       printError();
       return false;
     }
-    if (process.argv[4] === "ALL") {
+    if (process.argv[index_function_name] === "ALL" && process.argv.length == min_arg_count) {
       IS_ALL = true;
-    } else if (process.argv[4] === "WILD" && process.argv.length == 6) {
-      WILD_CARD = process.argv[5];
-      FUNCTION_NAMES.push(process.argv[5] + "*");
-    } else if (process.argv[4] != "ALL" && process.argv[4] != "WILD") {
-      for (let i = 4; i < process.argv.length; i++) {
+    } else if (process.argv[index_function_name].endsWith("*") && process.argv.length == min_arg_count) {
+      WILD_CARD = process.argv[index_function_name].split("*")[0];
+      FUNCTION_NAMES.push(process.argv[index_function_name]);
+    } else if (process.argv[index_function_name] != "ALL" && process.argv.length >= min_arg_count) {
+      for (let i = index_function_name; i < process.argv.length; i++) {
+        if (process.argv[i].endsWith("*")) {
+          printError();
+          return false;
+        }
         FUNCTION_NAMES.push(process.argv[i]);
       }
     } else {
@@ -126,6 +136,7 @@ function validateArgs() {
     }
     console.log((IS_UPLOAD ? "Uploading " : "Downloading ") + (IS_ALL ? "ALL" : JSON.stringify(FUNCTION_NAMES)) + " Function(s) from " + BASE_SOURCE_FOLDER);
   } else {
+    console.error("Invalid Argument Count");
     printError();
     return false;
   }
@@ -134,14 +145,14 @@ function validateArgs() {
 
 function printError() {
   console.log("Error in Arguments, Try with the following");
-  console.log("aws_lambda_sync <Source_Path> download ALL");
-  console.log("aws_lambda_sync <Source_Path> download WILD <Partial Function Name>");
-  console.log("aws_lambda_sync <Source_Path> download <Function Name>");
-  console.log("aws_lambda_sync <Source_Path> download <Function Name> <Function Name>");
-  console.log("aws_lambda_sync <Source_Path> upload ALL");
-  console.log("aws_lambda_sync <Source_Path> upload WILD <Partial Function Name>");
-  console.log("aws_lambda_sync <Source_Path> upload <Function Name>");
-  console.log("aws_lambda_sync <Source_Path> upload <Function Name> <Function Name>");
+  console.log("aws_lambda_sync <Source_Path> <profile> download ALL");
+  console.log("aws_lambda_sync <Source_Path> <profile> download my_lambda1");
+  console.log("aws_lambda_sync <Source_Path> <profile> download  my_lambda1 my_lambda2");
+  console.log("aws_lambda_sync <Source_Path> <profile> download my_lambda*");
+  console.log("aws_lambda_sync <Source_Path> <profile> upload ALL");
+  console.log("aws_lambda_sync <Source_Path> <profile> upload my_lambda1");
+  console.log("aws_lambda_sync <Source_Path> <profile> upload my_lambda1 my_lambda2");
+  console.log("aws_lambda_sync <Source_Path> <profile> upload my_lambda*");
 }
 
 /**
@@ -150,6 +161,7 @@ function printError() {
 let IS_UPLOAD = false;
 let IS_ALL = false;
 let FUNCTION_NAMES = [];
+let PROFILE;
 let WILD_CARD = "w2@w3Sde#";
 let BASE_SOURCE_FOLDER;
 var BASE_SOURCE_PATH;
@@ -166,7 +178,7 @@ let init = async function() {
     createBackupPaths();
 
     let functionDescriptionResult, downloadFileResult, uploadFunctionResult, extractZipResult;
-    let allFunctionListResult = JSON.parse(await getAllFunctionList()).Functions;
+    let allFunctionListResult = JSON.parse(await getAllFunctionList(PROFILE)).Functions;
 
     allFunctionListResult.map(async f => {
       if (IS_ALL || FUNCTION_NAMES.includes(f.FunctionName) || f.FunctionName.startsWith(WILD_CARD)) {
@@ -195,36 +207,24 @@ let init = async function() {
           fs.unlinkSync(zipFilePath);
         }
 
-        functionDescriptionResult = JSON.parse(await getFunctionDescription(f.FunctionName));
+        functionDescriptionResult = JSON.parse(await getFunctionDescription(f.FunctionName, PROFILE));
 
-        /**
+        if (!IS_UPLOAD) {
+          /**
          * Download Steps
          *
          * 1. Delete the Downloaded Zip, if exist (already uploaded/cancelled)
          * check for local changes in git, if so throw error
-         *get functionDescriptionResult
+         * get functionDescriptionResult
          if revision number is different from functionDescriptionResult and local config then do the following, else return
-         
          * 2. Backup Local Folder, if exist
          * 3. Download Zip File from AWS
          * 4. Delete Local Folder, if Exist
          * 5. Extract the Downloaded Zip
          * save the config
          * 6. Delete the Downloaded Zip
-         *
-         * Upload Steps
-         *
-         * 1. Delete the Downloaded Zip, if exist (already uploaded/cancelled)
-         * get functionDescriptionResult
-         * if revision number is same then continue Upload, else ask to download and update
-         * 2. Zip the local folder
-         * 3. Download and Backup the function from AWS
-         * 4. Upload the Zip Folder
-         * update the config
-         * 5. Delete the Downloaded Zip
          */
 
-        if (!IS_UPLOAD) {
           /**
            * Backup Local Folder if exists
            */
@@ -274,6 +274,19 @@ let init = async function() {
           }
         } else {
           /**
+           * Upload Steps
+           *
+           * 1. Delete the Downloaded Zip, if exist (already uploaded/cancelled)
+           * get functionDescriptionResult
+           * if revision number is same then continue Upload, else ask to download and update
+           * 2. Zip the local folder
+           * 3. Download and Backup the function from AWS
+           * 4. Upload the Zip Folder
+           * update the config
+           * 5. Delete the Downloaded Zip
+           */
+
+          /**
            * Zip Local Folder to upload
            */
           zipper.sync
@@ -299,7 +312,7 @@ let init = async function() {
             /**
              * Upload to AWS
              */
-            uploadFunctionResult = await uploadFunction(f.FunctionName, "fileb://" + zipFilePath);
+            uploadFunctionResult = await uploadFunction(f.FunctionName, "fileb://" + zipFilePath, PROFILE);
 
             /**
              * Delete Local zip Uploaded
