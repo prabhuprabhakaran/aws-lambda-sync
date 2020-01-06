@@ -39,6 +39,7 @@
 		"download-file": "^0.1.5",
 		"extract-zip": "^1.6.7",
 		"fs": "0.0.1-security",
+		"hidefile": "^3.0.0",
 		"node-cmd": "^3.0.0",
 		"path": "^0.12.7",
 		"zip-local": "^0.3.4"

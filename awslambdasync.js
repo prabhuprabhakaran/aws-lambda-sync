@@ -6,6 +6,7 @@ var zipper = require("zip-local");
 let extract = require("extract-zip");
 var fs = require("fs");
 var path = require("path");
+const hidefile = require("hidefile");
 
 let downloadFile = async function(dir, filename, url) {
   let options = {
@@ -59,6 +60,18 @@ let uploadFunction = async function(name, zipFile, profile) {
   });
 };
 
+let createFunction = async function(name, zipFile, profile) {
+  return new Promise((success, failure) => {
+    cmd.get(`aws lambda create-function-code --profile ${profile} --function-name ${name} --zip-file ${zipFile}`, function(err, data, stderr) {
+      if (err || stderr) {
+        failure(err || stderr);
+      } else {
+        success(data);
+      }
+    });
+  });
+};
+
 let getFunctionDescription = async function(name, profile) {
   return new Promise((success, failure) => {
     cmd.get(`aws lambda get-function --profile ${profile} --function-name ${name}`, function(err, data, stderr) {
@@ -89,13 +102,15 @@ function sleep(ms) {
 }
 
 function createBackupPaths() {
-  if (!fs.existsSync(BASE_SOURCE_FOLDER + "/.backup")) {
-    fs.mkdirSync(BASE_SOURCE_FOLDER + "/.backup");
+  if (!fs.existsSync(BASE_SOURCE_PATH + ".backup")) {
+    fs.mkdirSync(BASE_SOURCE_PATH + ".backup");
   }
 
-  if (!fs.existsSync(BASE_SOURCE_FOLDER + "/.config")) {
-    fs.mkdirSync(BASE_SOURCE_FOLDER + "/.config");
+  if (!fs.existsSync(BASE_SOURCE_PATH + ".config")) {
+    fs.mkdirSync(BASE_SOURCE_PATH + ".config");
   }
+  hidefile.hideSync(BASE_SOURCE_PATH + ".backup");
+  hidefile.hideSync(BASE_SOURCE_PATH + ".config");
 }
 
 function validateArgs() {
@@ -105,15 +120,18 @@ function validateArgs() {
   let index_function_name = 5;
   let min_arg_count = 6;
   if (process.argv.length >= min_arg_count) {
-    BASE_SOURCE_FOLDER = path.resolve(process.argv[index_file_path]);
-    BASE_SOURCE_PATH = BASE_SOURCE_FOLDER + "/";
-    console.log("Processing the source path " + BASE_SOURCE_FOLDER);
-    PROFILE = process.argv[index_profile];
-    if (process.argv[index_action] === "upload" || process.argv[index_action] === "download") {
-      if (process.argv[index_action] === "upload") {
-        IS_UPLOAD = true;
-      }
+    let basepath = path.resolve(process.argv[index_file_path]);
+    if (basepath.endsWith("/")) {
+      BASE_SOURCE_PATH = basepath;
     } else {
+      BASE_SOURCE_PATH = basepath + "/";
+    }
+    console.log("Processing the source path " + BASE_SOURCE_PATH);
+    PROFILE = process.argv[index_profile];
+    if (VALID_ACTIONS.includes(process.argv[index_action].toLowerCase())) {
+      ACTION = process.argv[index_action].toLowerCase();
+    } else {
+      console.error("Invalid Action");
       printError();
       return false;
     }
@@ -125,16 +143,18 @@ function validateArgs() {
     } else if (process.argv[index_function_name] != "ALL" && process.argv.length >= min_arg_count) {
       for (let i = index_function_name; i < process.argv.length; i++) {
         if (process.argv[i].endsWith("*")) {
+          console.error("Invalid Combination Wildcard with Function Name");
           printError();
           return false;
         }
         FUNCTION_NAMES.push(process.argv[i]);
       }
     } else {
+      console.error("Invalid Argument Count");
       printError();
       return false;
     }
-    console.log((IS_UPLOAD ? "Uploading " : "Downloading ") + (IS_ALL ? "ALL" : JSON.stringify(FUNCTION_NAMES)) + " Function(s) from " + BASE_SOURCE_FOLDER);
+    console.log("Action " + ACTION + " initiated For " + (IS_ALL ? "ALL" : JSON.stringify(FUNCTION_NAMES)) + " Function(s) from " + BASE_SOURCE_PATH);
   } else {
     console.error("Invalid Argument Count");
     printError();
@@ -155,15 +175,21 @@ function printError() {
   console.log("aws_lambda_sync <Source_Path> <profile> upload my_lambda*");
 }
 
+function getDirectories(path) {
+  return fs.readdirSync(path).filter(function(file) {
+    return fs.statSync(path + "/" + file).isDirectory();
+  });
+}
+
 /**
  * Global Variables
  */
-let IS_UPLOAD = false;
+let ACTION = "";
+let VALID_ACTIONS = ["upload", "download"];
 let IS_ALL = false;
 let FUNCTION_NAMES = [];
 let PROFILE;
 let WILD_CARD = "w2@w3Sde#";
-let BASE_SOURCE_FOLDER;
 var BASE_SOURCE_PATH;
 
 let init = async function() {
@@ -177,27 +203,51 @@ let init = async function() {
 
     createBackupPaths();
 
-    let functionDescriptionResult, downloadFileResult, uploadFunctionResult, extractZipResult;
     let allFunctionListResult = JSON.parse(await getAllFunctionList(PROFILE)).Functions;
+    let function_names = allFunctionListResult.map(function(c) {
+      return c.FunctionName;
+    });
 
-    allFunctionListResult.map(async f => {
-      if (IS_ALL || FUNCTION_NAMES.includes(f.FunctionName) || f.FunctionName.startsWith(WILD_CARD)) {
+    const dir_names = getDirectories(BASE_SOURCE_PATH);
+
+    if (dir_names.includes("node_modules")) {
+      dir_names.splice(dir_names.indexOf("node_modules"), 1);
+    }
+    if (dir_names.includes(".config")) {
+      dir_names.splice(dir_names.indexOf(".config"), 1);
+    }
+    if (dir_names.includes(".backup")) {
+      dir_names.splice(dir_names.indexOf(".backup"), 1);
+    }
+
+    console.log("All Functions Count :" + function_names.length);
+    console.log("All Dir Count :" + dir_names.length);
+    let new_dirs = dir_names.filter(x => !function_names.includes(x));
+    console.log("New Dir Count :" + new_dirs.length);
+    let all_fn_names = function_names.concat(new_dirs);
+    
+    all_fn_names.map(async functionName => {
+      let functionDescriptionResult;
+      if (IS_ALL || FUNCTION_NAMES.includes(functionName) || functionName.startsWith(WILD_CARD)) {
         /**
          * Variables
          */
-        var localSourceFolder = BASE_SOURCE_FOLDER + `/${f.FunctionName}`;
-        var backupFolderPath = BASE_SOURCE_FOLDER + "/.backup/";
+        var localSourceFolder = BASE_SOURCE_PATH + `${functionName}`;
+        var localSourceFolderPath = localSourceFolder + "/";
 
-        var zipFileName = `${f.FunctionName}.zip`;
+        var backupFolderPath = BASE_SOURCE_PATH + ".backup/";
+        var configFolderPath = BASE_SOURCE_PATH + ".config/";
+
+        var zipFileName = `${functionName}.zip`;
         var zipFilePath = BASE_SOURCE_PATH + zipFileName;
 
-        var awsBackupZipFileName = `${f.FunctionName}_` + new Date().YYYYMMDDHHMMSS() + "_AWS.zip";
-        var locBackupZipFileName = `${f.FunctionName}_` + new Date().YYYYMMDDHHMMSS() + "_LOC.zip";
+        var awsBackupZipFileName = `${functionName}_` + new Date().YYYYMMDDHHMMSS() + "_AWS.zip";
+        var locBackupZipFileName = `${functionName}_` + new Date().YYYYMMDDHHMMSS() + "_LOC.zip";
 
         var awsBackupZipFilePath = backupFolderPath + awsBackupZipFileName;
         var locBackupZipFilePath = backupFolderPath + locBackupZipFileName;
 
-        var localSourceFolderPath = localSourceFolder + "/";
+        var configFileName = configFolderPath + `/${functionName}.config`;
 
         /**
          * Delete Old Uploaded/Downloaded Zip from Local if exists
@@ -207,9 +257,9 @@ let init = async function() {
           fs.unlinkSync(zipFilePath);
         }
 
-        functionDescriptionResult = JSON.parse(await getFunctionDescription(f.FunctionName, PROFILE));
+        functionDescriptionResult = JSON.parse(await getFunctionDescription(functionName, PROFILE));
 
-        if (!IS_UPLOAD) {
+        if (ACTION === "download") {
           /**
          * Download Steps
          *
@@ -229,15 +279,26 @@ let init = async function() {
            * Backup Local Folder if exists
            */
           if (fs.existsSync(localSourceFolder)) {
+            /**
+             * Allow if only the source and destinations having different revision ID
+             */
+            if (fs.existsSync(configFileName)) {
+              let localConfig = JSON.parse(fs.readFileSync(configFileName));
+              if (localConfig.RevisionId === functionDescriptionResult.Configuration.RevisionId) {
+                console.log("Skipping Download for " + functionName + " Reason : No Changes in AWS");
+                return;
+              }
+            }
+
             zipper.sync
               .zip(localSourceFolderPath)
               .compress()
               .save(locBackupZipFilePath);
 
             if (fs.existsSync(locBackupZipFilePath)) {
-              console.log("Local Backup Completed for ", f.FunctionName);
+              console.log("Local Backup Completed for ", functionName);
             } else {
-              console.log("Local Backup Failed for ", f.FunctionName);
+              console.log("Local Backup Failed for ", functionName);
               return;
             }
           }
@@ -245,11 +306,12 @@ let init = async function() {
           /**
            * Download Zip from AWS
            */
-          downloadFileResult = await downloadFile(BASE_SOURCE_PATH, zipFileName, functionDescriptionResult.Code.Location);
+          await downloadFile(BASE_SOURCE_PATH, zipFileName, functionDescriptionResult.Code.Location);
+          fs.writeFileSync(configFileName, JSON.stringify(functionDescriptionResult.Configuration));
           await sleep(500);
 
           if (fs.existsSync(zipFilePath)) {
-            console.log("Download Completed for Function", f.FunctionName);
+            console.log("Download Completed for Function", functionName);
             /**
              * Delete Local Folder
              */
@@ -261,18 +323,18 @@ let init = async function() {
             /**
              * Extract downloaded Zip to Local Folder
              */
-            extractZipResult = await extractZip(zipFilePath, path.resolve(localSourceFolderPath));
+            await extractZip(zipFilePath, path.resolve(localSourceFolderPath));
 
             /**
              * Delete downloaded Zip from Local
              */
             fs.unlinkSync(zipFilePath);
-            console.log("Extract Completed for Function", f.FunctionName);
+            console.log("Extract Completed for Function", functionName);
           } else {
-            console.log("Download Failed for Function", f.FunctionName);
+            console.log("Download Failed for Function", functionName);
             return;
           }
-        } else {
+        } else if (ACTION === "upload" && !new_dirs.includes(functionName)) {
           /**
            * Upload Steps
            *
@@ -287,24 +349,35 @@ let init = async function() {
            */
 
           /**
+           * Allow if only the source and destinations having same revision ID
+           */
+          if (fs.existsSync(configFileName)) {
+            let localConfig = JSON.parse(fs.readFileSync(configFileName));
+            if (localConfig.RevisionId !== functionDescriptionResult.Configuration.RevisionId) {
+              console.log("Skipping Upload for " + functionName + " Reason : Code Changed in AWS." + "\nplease pull/download the latest changes from AWS and merge your changes then upload");
+              return;
+            }
+          }
+
+          /**
            * Zip Local Folder to upload
            */
           zipper.sync
             .zip(localSourceFolderPath)
             .compress()
             .save(zipFilePath);
-          console.log("Local Zip creation to upload Completed for ", f.FunctionName);
+          console.log("Local Zip creation to upload Completed for ", functionName);
 
           /**
            * Backup from AWS to Local Folder
            */
-          downloadFileResult = await downloadFile(backupFolderPath, awsBackupZipFileName, functionDescriptionResult.Code.Location);
+          await downloadFile(backupFolderPath, awsBackupZipFileName, functionDescriptionResult.Code.Location);
           await sleep(500);
 
           if (fs.existsSync(awsBackupZipFilePath)) {
-            console.log("AWS Backup Completed for ", f.FunctionName);
+            console.log("AWS Backup Completed for ", functionName);
           } else {
-            console.log("Backup Zip Not Exists, AWS Backup Failed for ", f.FunctionName);
+            console.log("Backup Zip Not Exists, AWS Backup Failed for ", functionName);
             return;
           }
 
@@ -312,17 +385,21 @@ let init = async function() {
             /**
              * Upload to AWS
              */
-            uploadFunctionResult = await uploadFunction(f.FunctionName, "fileb://" + zipFilePath, PROFILE);
+            await uploadFunction(functionName, "fileb://" + zipFilePath, PROFILE);
 
             /**
              * Delete Local zip Uploaded
              */
             fs.unlinkSync(zipFilePath);
-            console.log("Upload Completed for ", f.FunctionName);
+            console.log("Upload Completed for ", functionName);
           } else {
-            console.log("Local Zip Not Exists, Failed to Upload for ", f.FunctionName);
+            console.log("Local Zip Not Exists, Failed to Upload for ", functionName);
             return;
           }
+        } else if (ACTION === "upload" && new_dirs.includes(functionName)) {
+          /**
+           * Create New Function
+           */
         }
       }
     });
