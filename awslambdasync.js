@@ -126,7 +126,7 @@ function validateArgs() {
     } else {
       BASE_SOURCE_PATH = basepath + "/";
     }
-    console.log("Processing the source path " + BASE_SOURCE_PATH);
+    console.info("Processing the source path " + BASE_SOURCE_PATH);
     PROFILE = process.argv[index_profile];
     if (VALID_ACTIONS.includes(process.argv[index_action].toLowerCase())) {
       ACTION = process.argv[index_action].toLowerCase();
@@ -154,7 +154,7 @@ function validateArgs() {
       printError();
       return false;
     }
-    console.log("Action " + ACTION + " initiated For " + (IS_ALL ? "ALL" : JSON.stringify(FUNCTION_NAMES)) + " Function(s) from " + BASE_SOURCE_PATH);
+    console.info("Action " + ACTION + " initiated For " + (IS_ALL ? "ALL" : JSON.stringify(FUNCTION_NAMES)) + " Function(s) from " + BASE_SOURCE_PATH);
   } else {
     console.error("Invalid Argument Count");
     printError();
@@ -164,15 +164,17 @@ function validateArgs() {
 }
 
 function printError() {
-  console.log("Error in Arguments, Try with the following");
-  console.log("aws_lambda_sync <Source_Path> <profile> download ALL");
-  console.log("aws_lambda_sync <Source_Path> <profile> download my_lambda1");
-  console.log("aws_lambda_sync <Source_Path> <profile> download  my_lambda1 my_lambda2");
-  console.log("aws_lambda_sync <Source_Path> <profile> download my_lambda*");
-  console.log("aws_lambda_sync <Source_Path> <profile> upload ALL");
-  console.log("aws_lambda_sync <Source_Path> <profile> upload my_lambda1");
-  console.log("aws_lambda_sync <Source_Path> <profile> upload my_lambda1 my_lambda2");
-  console.log("aws_lambda_sync <Source_Path> <profile> upload my_lambda*");
+  console.error("Error in Arguments, Try with the following");
+  console.info("");
+  console.info("aws_lambda_sync <Source_Path> <profile> download ALL");
+  console.info("aws_lambda_sync <Source_Path> <profile> download my_lambda1");
+  console.info("aws_lambda_sync <Source_Path> <profile> download  my_lambda1 my_lambda2");
+  console.info("aws_lambda_sync <Source_Path> <profile> download my_lambda*");
+  console.info("");
+  console.info("aws_lambda_sync <Source_Path> <profile> upload ALL");
+  console.info("aws_lambda_sync <Source_Path> <profile> upload my_lambda1");
+  console.info("aws_lambda_sync <Source_Path> <profile> upload my_lambda1 my_lambda2");
+  console.info("aws_lambda_sync <Source_Path> <profile> upload my_lambda*");
 }
 
 function getDirectories(path) {
@@ -204,7 +206,7 @@ let init = async function() {
     createBackupPaths();
 
     let allFunctionListResult = JSON.parse(await getAllFunctionList(PROFILE)).Functions;
-    let function_names = allFunctionListResult.map(function(c) {
+    let lambda_function_names = allFunctionListResult.map(function(c) {
       return c.FunctionName;
     });
 
@@ -220,12 +222,12 @@ let init = async function() {
       dir_names.splice(dir_names.indexOf(".backup"), 1);
     }
 
-    console.log("All Functions Count :" + function_names.length);
-    console.log("All Dir Count :" + dir_names.length);
-    let new_dirs = dir_names.filter(x => !function_names.includes(x));
-    console.log("New Dir Count :" + new_dirs.length);
-    let all_fn_names = function_names.concat(new_dirs);
-    
+    console.log("Lambda Functions Count :" + lambda_function_names.length);
+    console.log("Directories Count :" + dir_names.length);
+    let new_dirs = dir_names.filter(x => !lambda_function_names.includes(x));
+    console.log("New Directories Count :" + new_dirs.length);
+    let all_fn_names = lambda_function_names.concat(new_dirs);
+
     all_fn_names.map(async functionName => {
       let functionDescriptionResult;
       if (IS_ALL || FUNCTION_NAMES.includes(functionName) || functionName.startsWith(WILD_CARD)) {
@@ -400,6 +402,7 @@ let init = async function() {
           /**
            * Create New Function
            */
+          console.log("Please create a empty function (" + functionName + ") in AWS, so that we can upload");
         }
       }
     });
